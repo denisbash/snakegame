@@ -30,7 +30,7 @@ drawCharBndry char (Field (y0, x0) (y1, x1)) = do
 prepareScreen :: IO()
 prepareScreen = do
     hSetBuffering stdin NoBuffering 
-    hSetEcho stdin False
+    --hSetEcho stdin False
     clearScreen
     setCursorPosition 0 0 
 
@@ -91,13 +91,13 @@ shiftCursor ch f y x = do
                 _ ->  showMessage f "not a valid key" >> setCursorPosition y x
 
     
-gameLoop :: Field -> IO()
-gameLoop f = do
+gameLoop :: IO Char -> Field -> IO()
+gameLoop ioChar f = do
     pos <- getCursorPosition
-    ch <- getChar 
+    ch <- ioChar 
     if ch == 'q' 
     then showMessage f "Game's over"
     else     
         case pos of
-            Just (y, x) -> shiftCursor ch f y x >> gameLoop f
-            Nothing -> showMessage f "Not a valid pos" >> setCursorPosition 1 1 >> gameLoop f
+            Just (y, x) -> shiftCursor ch f y x >> gameLoop ioChar f
+            Nothing -> showMessage f "Not a valid pos" >> setCursorPosition 1 1 >> gameLoop ioChar f
