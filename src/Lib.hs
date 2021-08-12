@@ -41,7 +41,9 @@ data Game = Game {
 }
 appleScore = 1 :: Int
 
-initialSnake = Snake [(20,20)] UP
+gameSpeed = 3 :: Int
+
+initialSnake = Snake [(20,20)] RIGHT
 initialApple = (10,10)
 initialGame = Game initialSnake initialApple 0 (Field (5,5) (40, 90))  
 
@@ -78,51 +80,17 @@ showMessage f s = let (y, x) = lowerRight f in
 isInsideTheField :: Field -> Point -> Bool 
 isInsideTheField (Field (a, b) (c, d)) (y, x) =  y > a && x > b && y < c && x < d 
 
-shiftCursor :: Char -> Field -> Int -> Int -> IO()
-shiftCursor ch f y x = do
-    if not (isInsideTheField f (y, x)) 
-    then showMessage f "Not inside the field" >> setCursorPosition y x
-    else 
-        case ch of
-                'j' -> if isInsideTheField f (y+1, x) 
-                    then setCursorPosition (y+1) x
-                    else showMessage f "cannot move down" >> setCursorPosition y x      
-                'k' -> if isInsideTheField f (y-1, x)
-                    then setCursorPosition (y-1) x
-                    else showMessage f "cannot move up" >> setCursorPosition y x 
-                'h' -> if isInsideTheField f (y, x-1) 
-                    then setCursorPosition y (x-1)
-                    else showMessage f "cannot move left" >> setCursorPosition y x 
-                'l' -> if isInsideTheField f (y, x+1) 
-                    then setCursorPosition y (x+1)
-                    else showMessage f "cannot move right" >> setCursorPosition y x 
-                _ ->  showMessage f "not a valid key" >> setCursorPosition y x
-
-    
--- gameLoop :: IO Char -> Field -> IO()
--- gameLoop ioChar f = do
---     pos <- getCursorPosition
---     ch <- ioChar 
---     threadDelay 100000
---     if ch == 'q' 
---     then showMessage f "Game's over"
---     else     
---         case pos of
---             Just (y, x) -> shiftCursor ch f y x >> gameLoop ioChar f
---             --Just (y, x) -> putChar 'x' >> setCursorPosition y x >> shiftCursor ch f y x >> gameLoop ioChar f
---             Nothing -> showMessage f "Not a valid pos" >> setCursorPosition 1 1 >> gameLoop ioChar f
-
 gameLoop :: IO Char -> Game -> IO()
-gameLoop iochar g = do 
-    --drawGame g
+gameLoop iochar g = do    
     drawGameCharPoints g        
-    handleGameOver . isGameOver $ g       
-    ch <- iochar
-    threadDelay 1000
-    eraseGameCharPoints g
-    setCursorPosition 0 0
-    let g' = evolveGame $ (changeGameWithParams . transformInputToGameParams $ ch) g  in
-        gameLoop iochar g'
+    handleGameOver . isGameOver $ g 
+    threadDelay $ 100000 * gameSpeed
+    res <- whenKeyIsPressed stdin getChar    
+    eraseGameCharPoints g 
+    case res of
+        Nothing -> gameLoop iochar (evolveGame g)
+        Just ch -> gameLoop iochar (evolveGame $ (changeGameWithParams . transformInputToGameParams $ ch) g) 
+    
 
 transformInputToGameParams :: Char -> Maybe Direction
 transformInputToGameParams ch = case ch of 
@@ -225,3 +193,10 @@ drawGameCharPoints g = mapM_ drawCharPoint (gameToCharPoints g) >> setCursorPosi
 
 eraseGameCharPoints :: Game -> IO()
 eraseGameCharPoints g = mapM_ (\(ch, p) -> drawPoint ' ' p) (gameToCharPoints g) >> setCursorPosition 0 0
+
+whenKeyIsPressed :: Handle -> IO a -> IO (Maybe a)
+whenKeyIsPressed handle getCh = hReady handle >>= go
+   where go True = getCh >>= return . Just
+         go _    = return Nothing
+
+
