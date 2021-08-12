@@ -41,7 +41,7 @@ data Game = Game {
 }
 appleScore = 1 :: Int
 
-gameSpeed = 3 :: Int
+gameSpeed = 15 :: Int
 
 initialSnake = Snake [(20,20)] RIGHT
 initialApple = (10,10)
@@ -73,8 +73,9 @@ prepareScreen = do
     setCursorPosition 0 0 
 
 showMessage :: Field -> String -> IO()
-showMessage f s = let (y, x) = lowerRight f in
-    setCursorPosition (y+2) x >> putStr s
+showMessage f s =   let (y, _) = lowerRight f
+                        (_, x) = upperLeft f 
+                    in  setCursorPosition (y+2) x >> putStr s
 
 
 isInsideTheField :: Field -> Point -> Bool 
@@ -83,8 +84,8 @@ isInsideTheField (Field (a, b) (c, d)) (y, x) =  y > a && x > b && y < c && x < 
 gameLoop :: IO Char -> Game -> IO()
 gameLoop iochar g = do    
     drawGameCharPoints g        
-    handleGameOver . isGameOver $ g 
-    threadDelay $ 100000 * gameSpeed
+    handleGameIfOver g 
+    threadDelay $ 10000 * gameSpeed
     res <- whenKeyIsPressed stdin getChar    
     eraseGameCharPoints g 
     case res of
@@ -141,7 +142,7 @@ growSnakeWithPoint x (Snake ps d) = Snake (x:ps) d
 
 eatApple :: Game -> Game
 eatApple (Game s a sc f g) = if hasSnakeFoundApple s a 
-    then newApple (Game (growSnakeWithPoint a s) a (sc+appleScore) f g)
+    then newApple (Game (growSnakeWithPoint a s) a (sc + appleScore) f g)
     else Game s a sc f g
 
 evolveGame g = eatApple $ g{snake=moveSnake . snake $ g}
@@ -171,16 +172,18 @@ clearField = drawCharBndry '#'
 
 newApple :: Game -> Game
 newApple (Game s ap sc (Field a b) r) = let 
-     (y, r1) = randomR(fst a, fst b) r
-     (x, r2) = randomR(snd a, snd b) r1
+     (y, r1) = randomR(fst a + 1, fst b - 1) r
+     (x, r2) = randomR(snd a + 1, snd b - 1) r1
      in Game s (y,x) sc (Field a b) r2
 
 isGameOver :: Game -> Bool 
 isGameOver g = not $ isInsideTheField (field g) (head . positions . snake $ g)
 
-handleGameOver :: Bool -> IO()
-handleGameOver True = empty
-handleGameOver False = return()
+handleGameIfOver :: Game -> IO()
+handleGameIfOver g = if isGameOver g 
+    then showMessage (field g) ("GAME OVER! Your score is: " ++ show (score g)) >> setCursorPosition 0 0 >> empty
+    else return ()
+
 
 gameToCharPoints :: Game -> [(Char, Point)]
 gameToCharPoints g  = ('@', apple g) : fmap (\p -> ('o', p)) (positions . snake $ g)
@@ -198,5 +201,4 @@ whenKeyIsPressed :: Handle -> IO a -> IO (Maybe a)
 whenKeyIsPressed handle getCh = hReady handle >>= go
    where go True = getCh >>= return . Just
          go _    = return Nothing
-
 
