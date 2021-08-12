@@ -4,7 +4,7 @@ module Lib
       gameLoop,
       initialGame,
       Field(..),
-      Game(..),          
+      Game(..),                
     ) where
 import System.Console.ANSI
 import System.IO
@@ -13,6 +13,7 @@ import Text.Read.Lex (isSymbolChar)
 import GHC.Show (Show)
 import System.Random
 import GHC.Base (Alternative(empty))
+import Data.List
 
 data Field = Field {
     upperLeft :: (Int, Int),
@@ -29,21 +30,20 @@ data Snake = Snake {
     positions ::[Point],
     direction :: Direction} deriving Show
 
-type Apple = Maybe Point
+type Apple = Point
 
 data Game = Game {
     snake :: Snake,
     apple :: Apple,
     score :: Int,
-    field :: Field,
-    pointsToErase :: [Point],
+    field :: Field,    
     randG :: StdGen     
 }
 appleScore = 1 :: Int
 
 initialSnake = Snake [(20,20)] UP
-initialApple = Just (10,10)
-initialGame = Game initialSnake initialApple 0 (Field (5,5) (40, 90)) [] 
+initialApple = (10,10)
+initialGame = Game initialSnake initialApple 0 (Field (5,5) (40, 90))  
 
 putCharAtPosition :: Char -> (Int, Int) -> IO()
 
@@ -113,12 +113,16 @@ shiftCursor ch f y x = do
 --             Nothing -> showMessage f "Not a valid pos" >> setCursorPosition 1 1 >> gameLoop ioChar f
 
 gameLoop :: IO Char -> Game -> IO()
-gameLoop iochar g = do        
-    drawGame g
-    handleGameOver . isGameOver $ g
+gameLoop iochar g = do 
+    --drawGame g
+    drawGameCharPoints g        
+    handleGameOver . isGameOver $ g       
     ch <- iochar
     threadDelay 1000
-    gameLoop iochar (evolveGame . updateGameSideEffects $ (changeGameWithParams . transformInputToGameParams $ ch) g)
+    eraseGameCharPoints g
+    setCursorPosition 0 0
+    let g' = evolveGame $ (changeGameWithParams . transformInputToGameParams $ ch) g  in
+        gameLoop iochar g'
 
 transformInputToGameParams :: Char -> Maybe Direction
 transformInputToGameParams ch = case ch of 
@@ -158,26 +162,21 @@ moveSnake (Snake p d) =
         h:ts -> Snake (movePointInDirection h d:moveSnakeTail h ts) d
 
 hasSnakeFoundApple :: Snake -> Apple -> Bool 
-hasSnakeFoundApple (Snake [] _) a = False 
-hasSnakeFoundApple (Snake (x:xs) _) Nothing = False 
-hasSnakeFoundApple (Snake (x:xs) d) (Just y) = nextPointInDirection x d==y
+hasSnakeFoundApple (Snake [] _) a = False  
+hasSnakeFoundApple (Snake (x:xs) d) y = nextPointInDirection x d==y
 
 nextPointInDirection :: Point -> Direction -> Point
 nextPointInDirection = movePointInDirection
     
-growSnakeWithPoint :: Maybe Point -> Snake -> Snake
-growSnakeWithPoint Nothing s = s
-growSnakeWithPoint (Just x) (Snake ps d) = Snake (x:ps) d
+growSnakeWithPoint :: Point -> Snake -> Snake
+growSnakeWithPoint x (Snake ps d) = Snake (x:ps) d
 
 eatApple :: Game -> Game
-eatApple (Game s a sc f e g) = if hasSnakeFoundApple s a 
-    then newApple (Game (growSnakeWithPoint a s) a (sc+appleScore) f e g)
-    else Game s a sc f e g
+eatApple (Game s a sc f g) = if hasSnakeFoundApple s a 
+    then newApple (Game (growSnakeWithPoint a s) a (sc+appleScore) f g)
+    else Game s a sc f g
 
 evolveGame g = eatApple $ g{snake=moveSnake . snake $ g}
-
-updateGameSideEffects :: Game -> Game
-updateGameSideEffects g = g{pointsToErase=[getSnakeEnd . snake $ g]} -- : eraseApple a
 
 eraseApple a = case a of
     Nothing -> []
@@ -190,11 +189,11 @@ drawSnake :: Snake -> IO()
 drawSnake (Snake ps _) = drawFigureWithChar ps 'o'
 
 drawApple :: Apple -> IO()
-drawApple (Just x) = drawPoint '@' x
-drawApple Nothing = return ()
+drawApple = drawPoint '@' 
+
 
 drawGame :: Game -> IO()
-drawGame  g = drawSnake  (snake g) >> drawApple  (apple g) >> mapM_ (putCharAtPosition ' ') (pointsToErase g) >> setCursorPosition 0 0
+drawGame  g = drawSnake  (snake g) >> drawApple  (apple g) >> setCursorPosition 0 0
 
 drawFigureWithChar :: [(Int, Int)] -> Char -> IO()
 drawFigureWithChar xs ch = mapM_ (drawPoint ch) xs
@@ -203,10 +202,10 @@ clearField :: Field -> IO()
 clearField = drawCharBndry '#' 
 
 newApple :: Game -> Game
-newApple (Game s ap sc (Field a b) ps r) = let 
+newApple (Game s ap sc (Field a b) r) = let 
      (y, r1) = randomR(fst a, fst b) r
      (x, r2) = randomR(snd a, snd b) r1
-     in Game s (Just (y,x)) sc (Field a b) ps r2
+     in Game s (y,x) sc (Field a b) r2
 
 isGameOver :: Game -> Bool 
 isGameOver g = not $ isInsideTheField (field g) (head . positions . snake $ g)
@@ -214,3 +213,15 @@ isGameOver g = not $ isInsideTheField (field g) (head . positions . snake $ g)
 handleGameOver :: Bool -> IO()
 handleGameOver True = empty
 handleGameOver False = return()
+
+gameToCharPoints :: Game -> [(Char, Point)]
+gameToCharPoints g  = ('@', apple g) : fmap (\p -> ('o', p)) (positions . snake $ g)
+
+drawCharPoint :: (Char, Point) -> IO()
+drawCharPoint (ch, p) = drawPoint ch p
+
+drawGameCharPoints :: Game -> IO()
+drawGameCharPoints g = mapM_ drawCharPoint (gameToCharPoints g) >> setCursorPosition 0 0
+
+eraseGameCharPoints :: Game -> IO()
+eraseGameCharPoints g = mapM_ (\(ch, p) -> drawPoint ' ' p) (gameToCharPoints g) >> setCursorPosition 0 0
