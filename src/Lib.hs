@@ -1,10 +1,13 @@
+{-# LANGUAGE TupleSections #-}
 module Lib
     ( drawCharBndry,
       prepareScreen,
       gameLoop,
       initialGame,
       Field(..),
-      Game(..),                
+      Game(..), 
+      evolveGame,
+      evWithInput             
     ) where
 import System.Console.ANSI
 import System.IO
@@ -14,13 +17,13 @@ import GHC.Show (Show)
 import System.Random
 import GHC.Base (Alternative(empty))
 import Data.List
+import Data.Functor ((<&>))
+import Classes (GameClass)
+
 
 data Field = Field {
     upperLeft :: (Int, Int),
     lowerRight :: (Int, Int)}
-
--- showInfo :: Game -> IO()
--- showInfo g = setCursorPosition (fst (lowerRight . field g))  (fst (upperLeft . field g)) >> print snake g >> print pointsToErase g 
 
 type Point = (Int, Int)
 
@@ -39,20 +42,20 @@ data Game = Game {
     field :: Field,    
     randG :: StdGen     
 }
+
+clearLineCodeStr = "\ESC[0J"
 appleScore = 1 :: Int
 
-gameSpeed = 15 :: Int
+gameSpeed = 20 :: Int
 
 initialSnake = Snake [(20,20)] RIGHT
 initialApple = (10,10)
-initialGame = Game initialSnake initialApple 0 (Field (5,5) (40, 90))  
+initialGame = Game initialSnake initialApple 0 (Field (5,5) (30, 60))  
 
 putCharAtPosition :: Char -> (Int, Int) -> IO()
-
 putCharAtPosition ch coors = do 
     let (y, x) = coors in     
-     setCursorPosition y x
-    --threadDelay 10000
+     setCursorPosition y x    
     putChar ch
 
 drawCharBndry :: Char -> Field -> IO()
@@ -61,8 +64,7 @@ drawCharBndry char (Field (y0, x0) (y1, x1)) = do
     mapM_ (putCharAtPosition char)  [(y0,x')| x' <- [x0..x1]]
     mapM_ (putCharAtPosition char)  [(y',x0)| y' <- [y0..y1]]
     mapM_ (putCharAtPosition char)  [(y1,x')| x' <- [x0..x1]]
-    mapM_ (putCharAtPosition char)  [(y',x1)| y' <- [y0..y1]]
-    --setCursorPosition ((y0+y1)`div` 2) ((x0+x1) `div` 2)
+    mapM_ (putCharAtPosition char)  [(y',x1)| y' <- [y0..y1]]    
 
 prepareScreen :: IO()
 prepareScreen = do
@@ -77,29 +79,39 @@ showMessage f s =   let (y, _) = lowerRight f
                         (_, x) = upperLeft f 
                     in  setCursorPosition (y+2) x >> putStr s
 
-
 isInsideTheField :: Field -> Point -> Bool 
 isInsideTheField (Field (a, b) (c, d)) (y, x) =  y > a && x > b && y < c && x < d 
 
-gameLoop :: IO Char -> Game -> IO()
-gameLoop iochar g = do    
-    drawGameCharPoints g        
-    handleGameIfOver g 
-    threadDelay $ 10000 * gameSpeed
-    res <- whenKeyIsPressed stdin getChar    
-    eraseGameCharPoints g 
-    case res of
-        Nothing -> gameLoop iochar (evolveGame g)
-        Just ch -> gameLoop iochar (evolveGame $ (changeGameWithParams . transformInputToGameParams $ ch) g) 
-    
+gameLoop :: Game -> IO (Maybe Char, Game)
+gameLoop g = do    
+    drawGameCharPoints g 
+    threadDelay $ 10000 * gameSpeed 
+    eraseGameCharPoints g      
+    g' <- handleGameIfOver g     
+    res <- whenKeyIsPressed     
+    gameLoop $ evolveGame $ (changeGameWithParams . transformInputToGameParams $ res) g' 
 
-transformInputToGameParams :: Char -> Maybe Direction
+gameCleanUp :: Game -> IO()
+gameCleanUp g = do
+    drawGameCharPoints g 
+    threadDelay $ 10000 * gameSpeed 
+    eraseGameCharPoints g 
+
+runOneStep :: Game -> IO(Maybe Char, Game)
+runOneStep g = do
+    gameCleanUp g
+    (,)<$>whenKeyIsPressed <*> handleGameIfOver g     
+
+evWithInput :: (Maybe Char, Game) -> Game
+evWithInput (res, g) = evolveGame $ (changeGameWithParams . transformInputToGameParams $ res) g
+
+transformInputToGameParams :: Maybe Char -> Maybe Direction
 transformInputToGameParams ch = case ch of 
-    'k' -> Just UP
-    'j' -> Just DOWN
-    'h' -> Just LEFT
-    'l' -> Just RIGHT 
-    _ -> Nothing 
+    Just 'k' -> Just UP
+    Just 'j' -> Just DOWN
+    Just 'h' -> Just LEFT
+    Just 'l' -> Just RIGHT 
+    _        -> Nothing 
 
 changeGameWithParams :: Maybe Direction -> Game -> Game
 changeGameWithParams Nothing  g = g
@@ -147,22 +159,8 @@ eatApple (Game s a sc f g) = if hasSnakeFoundApple s a
 
 evolveGame g = eatApple $ g{snake=moveSnake . snake $ g}
 
-eraseApple a = case a of
-    Nothing -> []
-    Just x -> [x] 
-
 getSnakeEnd :: Snake -> Point
 getSnakeEnd  = last . positions 
-
-drawSnake :: Snake -> IO()
-drawSnake (Snake ps _) = drawFigureWithChar ps 'o'
-
-drawApple :: Apple -> IO()
-drawApple = drawPoint '@' 
-
-
-drawGame :: Game -> IO()
-drawGame  g = drawSnake  (snake g) >> drawApple  (apple g) >> setCursorPosition 0 0
 
 drawFigureWithChar :: [(Int, Int)] -> Char -> IO()
 drawFigureWithChar xs ch = mapM_ (drawPoint ch) xs
@@ -177,16 +175,27 @@ newApple (Game s ap sc (Field a b) r) = let
      in Game s (y,x) sc (Field a b) r2
 
 isGameOver :: Game -> Bool 
-isGameOver g = not $ isInsideTheField (field g) (head . positions . snake $ g)
+isGameOver g = doesSelfIntersect (snake g) || not (isInsideTheField (field g) (head . positions . snake $ g)) 
 
-handleGameIfOver :: Game -> IO()
+doPointsCoincide :: Point -> Point -> Bool 
+doPointsCoincide p1 p2 = p1 == p2 
+
+doesSelfIntersect :: Snake -> Bool 
+doesSelfIntersect (Snake [] _) = False 
+doesSelfIntersect (Snake [x] _) = False
+doesSelfIntersect (Snake (x:xs) _) = or $ fmap (doPointsCoincide x) xs
+
+handleGameIfOver :: Game -> IO Game
 handleGameIfOver g = if isGameOver g 
-    then showMessage (field g) ("GAME OVER! Your score is: " ++ show (score g)) >> setCursorPosition 0 0 >> empty
-    else return ()
+                        then showMessage (field g) ("GAME OVER! Your score is: " ++ show (score g) ++ ". Restart? (y/n)")
+                            >> threadDelay 1000000 >> getChar >>= (\ch -> if ch == 'y' then showMessage (field g) clearLineCodeStr 
+                                                                    >> initialGame <$> newStdGen    
+                                                    else setCursorPosition 0 0 >> empty)
+                    else return g
 
 
 gameToCharPoints :: Game -> [(Char, Point)]
-gameToCharPoints g  = ('@', apple g) : fmap (\p -> ('o', p)) (positions . snake $ g)
+gameToCharPoints g  = ('@', apple g) : fmap ('o',) (positions . snake $ g)
 
 drawCharPoint :: (Char, Point) -> IO()
 drawCharPoint (ch, p) = drawPoint ch p
@@ -197,8 +206,18 @@ drawGameCharPoints g = mapM_ drawCharPoint (gameToCharPoints g) >> setCursorPosi
 eraseGameCharPoints :: Game -> IO()
 eraseGameCharPoints g = mapM_ (\(ch, p) -> drawPoint ' ' p) (gameToCharPoints g) >> setCursorPosition 0 0
 
-whenKeyIsPressed :: Handle -> IO a -> IO (Maybe a)
-whenKeyIsPressed handle getCh = hReady handle >>= go
-   where go True = getCh >>= return . Just
+whenKeyIsPressed :: IO (Maybe Char)
+whenKeyIsPressed = hReady stdin >>= go
+   where go True = getChar >>= return . Just
          go _    = return Nothing
+
+
+--instance GameClass
+
+-- xs = "jklhkjlc"
+
+-- f :: String -> [Char]
+-- f ch = do
+--     x <- xs
+--     if x=='c' then "game over at: "++x:ch else "x"--f $ x:ch
 
