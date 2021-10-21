@@ -1,11 +1,17 @@
 module Main where
 
 import Lib
+    ( drawCharBndry,
+      initialGame,
+      prepareScreen,
+      Field(Field) )
+import Classes (gameLoop)
 import Control.Concurrent
 import Control.Applicative
 import System.IO
 import System.Console.ANSI (setCursorPosition)
 import System.Random
+import System.IO (putStrLn)
 main :: IO ()
 main = do
     prepareScreen    
@@ -13,6 +19,7 @@ main = do
     --handle <- openFile "/home/denis/Desktop/haskell/snake-game/testCursorPath.txt" ReadMode    
     --gameLoop (hGetChar handle) $ Field (5,5) (50,90)
     g0 <- newStdGen  
-    gameLoop stdin getChar (initialGame g0)    
+    gameLoop (initialGame g0)
+    putStrLn "That's it, folks!"    
 
 

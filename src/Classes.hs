@@ -3,16 +3,18 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Classes(
     GameClass(..),
-    GamePlayClass(..)
+    GamePlayClass(..),
+    gameLoop
 ) where
+import Control.Applicative (Alternative)
 
-class GameClass s a g | g -> s a where -- without the func dep in gameLoop a is ambiguos; Besides gamestep is itself ambiguos
-    evolve :: g -> s -> s
-    evolveWithInput :: g -> (Maybe a, s) -> s
+class GameClass s a | s -> a where -- without the func dep in gameLoop a is ambiguos; Besides gamestep is itself ambiguos
+    evolve :: s -> s
+    evolveWithInput :: (Maybe a, s) -> s
+-- Need Alternative to return empty game if game is over in gameStep
+class (GameClass s a, Alternative m, Monad m) => GamePlayClass s a m where
+    gameStep :: s -> m (Maybe a, s)
 
-class (GameClass s a g, Monad m) => GamePlayClass s a g m p | p -> g where
-    gameStep :: p -> s -> m (Maybe a, s)
 
-
-gameLoop :: GamePlayClass s a g m p => p -> g -> s -> m (Maybe a, s)
-gameLoop p g s0 = gameStep p s0 >>= gameLoop p g . evolveWithInput g
+gameLoop :: GamePlayClass s a m => s -> m (Maybe a, s)
+gameLoop s0 = gameStep s0 >>= gameLoop . evolveWithInput 

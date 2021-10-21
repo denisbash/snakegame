@@ -1,8 +1,9 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Lib
     ( drawCharBndry,
       prepareScreen,
-      gameLoop,
+      --gameLoop,
       initialGame,
       Field(..),
       Game(..), 
@@ -18,7 +19,8 @@ import System.Random
 import GHC.Base (Alternative(empty))
 import Data.List
 import Data.Functor ((<&>))
-import Classes (GameClass)
+import Classes (GameClass (evolve, evolveWithInput), GamePlayClass (gameStep))
+import Auxiliary (Reader(..))
 
 
 data Field = Field {
@@ -82,14 +84,14 @@ showMessage f s =   let (y, _) = lowerRight f
 isInsideTheField :: Field -> Point -> Bool 
 isInsideTheField (Field (a, b) (c, d)) (y, x) =  y > a && x > b && y < c && x < d 
 
-gameLoop :: Game -> IO (Maybe Char, Game)
-gameLoop g = do    
-    drawGameCharPoints g 
-    threadDelay $ 10000 * gameSpeed 
-    eraseGameCharPoints g      
-    g' <- handleGameIfOver g     
-    res <- whenKeyIsPressed     
-    gameLoop $ evolveGame $ (changeGameWithParams . transformInputToGameParams $ res) g' 
+-- gameLoop :: Game -> IO (Maybe Char, Game)
+-- gameLoop g = do    
+--     drawGameCharPoints g 
+--     threadDelay $ 10000 * gameSpeed 
+--     eraseGameCharPoints g      
+--     g' <- handleGameIfOver g     
+--     res <- whenKeyIsPressed     
+--     gameLoop $ evolveGame $ (changeGameWithParams . transformInputToGameParams $ res) g' 
 
 gameCleanUp :: Game -> IO()
 gameCleanUp g = do
@@ -97,13 +99,17 @@ gameCleanUp g = do
     threadDelay $ 10000 * gameSpeed 
     eraseGameCharPoints g 
 
-runOneStep :: Game -> IO(Maybe Char, Game)
+runOneStep :: Game -> IO(Maybe Direction, Game)
 runOneStep g = do
     gameCleanUp g
-    (,)<$>whenKeyIsPressed <*> handleGameIfOver g     
+    (,)<$>(transformInputToGameParams<$> whenKeyIsPressed)<*> handleGameIfOver g
 
-evWithInput :: (Maybe Char, Game) -> Game
-evWithInput (res, g) = evolveGame $ (changeGameWithParams . transformInputToGameParams $ res) g
+runOneStepAuto :: Game -> Reader [Char] (Maybe Direction, Game)
+runOneStepAuto g = (,)<$>(transformInputToGameParams<$> whenKeyIsPressedAuto)<*> handleGameIfOverAuto g
+
+
+evWithInput :: (Maybe Direction, Game) -> Game
+evWithInput (res, g) = evolveGame $ changeGameWithParams res g
 
 transformInputToGameParams :: Maybe Char -> Maybe Direction
 transformInputToGameParams ch = case ch of 
@@ -193,6 +199,8 @@ handleGameIfOver g = if isGameOver g
                                                     else setCursorPosition 0 0 >> empty)
                     else return g
 
+handleGameIfOverAuto :: Game -> Reader [Char] Game
+handleGameIfOverAuto g = if isGameOver g then empty else return g
 
 gameToCharPoints :: Game -> [(Char, Point)]
 gameToCharPoints g  = ('@', apple g) : fmap ('o',) (positions . snake $ g)
@@ -211,8 +219,15 @@ whenKeyIsPressed = hReady stdin >>= go
    where go True = getChar >>= return . Just
          go _    = return Nothing
 
+whenKeyIsPressedAuto :: Reader [Char] (Maybe Char)
+whenKeyIsPressedAuto = Reader $ Just . head
 
---instance GameClass
+instance GameClass Game Direction where
+    evolve = evolveGame
+    evolveWithInput = evWithInput
+
+instance GamePlayClass Game Direction IO where
+    gameStep = runOneStep
 
 -- xs = "jklhkjlc"
 
