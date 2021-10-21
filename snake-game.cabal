@@ -27,9 +27,10 @@ source-repository head
 
 library
   exposed-modules:
-      Lib,
+      GamePlays,
       Classes,
-      Auxiliary
+      Auxiliary,
+      GameLogic
   other-modules:
       Paths_snake_game
   hs-source-dirs:
