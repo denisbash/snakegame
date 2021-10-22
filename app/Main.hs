@@ -1,8 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
-import GamePlays ( drawCharBndry, prepareScreen, directionToChar )
-import GameLogic (initialGame, Field(..), Snake(..), Point(..), Game (field))
+import GamePlays ( drawCharBndry, prepareScreen, directionToChar, gameCleanUp )
+import GameLogic (initialGame, Field(..), Snake(..), Point(..), Game (..))
 import Auxiliary (ReaderT(..), WriterT (..))
 import Classes (gameLoop)
 import Control.Concurrent
@@ -50,6 +50,9 @@ mainWAuto = do
 mainWBot :: IO()
 mainWBot = do
     g0 <- newStdGen 
-    let (_, x::[(Snake, Point)]) = runIdentity $ runWriterT (gameLoop (initialGame g0)) 
-    print x     
+    let (_, x::[Game]) = runIdentity $ runWriterT (gameLoop (initialGame g0)) 
+    mapM_ (\g -> print (snake g, apple g)) x 
+    putStrLn "Do you want to see replay? If YES, press y. Otherwise press any other key." 
+    ch <- getChar
+    if ch == 'y' then prepareScreen >> drawCharBndry '#' (field (head x)) >> mapM_ gameCleanUp x else putStrLn "OK"
     putStrLn "WBot run is completed"

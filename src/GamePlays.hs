@@ -6,7 +6,8 @@ module GamePlays
     ( drawCharBndry,
       prepareScreen,
       evWithInput,
-      directionToChar
+      directionToChar,
+      gameCleanUp
     ) where
 import System.Console.ANSI
 import System.IO
@@ -32,7 +33,7 @@ type SnakeAuto = ReaderT [Char] Maybe
 
 type SnakeWAuto = WriterT [Snake] SnakeAuto
 
-type BotPlay = WriterT [(Snake, Point)] Identity
+type BotPlay = WriterT [Game] Identity
 
 instance GameClass Game Direction where
     evolve = evolveGame
@@ -71,7 +72,7 @@ directionToChar RIGHT = 'l'
 ---------------------------- Bot GamePlay --------------------------------
 
 runOneStepBot :: Game -> BotPlay (Maybe Direction, Game)
-runOneStepBot g = tell [(snake g, apple g)] >> (setDirectionToApple g, ) <$> handleGameIfOverAuto g
+runOneStepBot g = tell [g] >> (setDirectionToApple g, ) <$> handleGameIfOverAuto g
 
 ---------------------------- Auto GamePlay -------------------------------
 
@@ -120,7 +121,7 @@ showMessage f s =   let (y, _) = lowerRight f
                     in  setCursorPosition (y+2) x >> putStr s
 
 gameCleanUp :: Game -> IO()
-gameCleanUp g = do
+gameCleanUp g = do    
     drawGameCharPoints g
     threadDelay $ 10000 * gameSpeed
     eraseGameCharPoints g
