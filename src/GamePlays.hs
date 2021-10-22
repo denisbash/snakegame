@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
@@ -21,7 +20,7 @@ import Data.Functor ((<&>))
 import GameLogic (Game(..), Field(..), Snake(..), Direction(..), Point(..), Status(..),
     gameSpeed, evolveGame, changeSnakeDirection, isGameOver, initialGame, changeGameWithParams, setDirectionToApple)
 import Classes (GameClass (..), GamePlayClass (gameStep))
-import Auxiliary (ReaderT(..), local, WriterT, tell, liftWriterT)
+import Auxiliary (ReaderT(..), local, WriterT, tell, liftWriterT, StateT, getHead, pop)
 import System.Random (newStdGen)
 import Data.Functor.Identity (Identity)
 
@@ -29,11 +28,15 @@ import Data.Functor.Identity (Identity)
 
 --------------------------------- Instances -------------------------------------------------
 
-type SnakeAuto = ReaderT [Char] Maybe
+type SnakeTest = ReaderT [Char] Maybe
 
-type SnakeWAuto = WriterT [Snake] SnakeAuto
+type SnakeWTest = WriterT [Snake] SnakeTest
 
 type BotPlay = WriterT [Game] Identity
+
+type SnakeTest' = StateT [Char] Maybe
+
+type SnakeWTest' = WriterT [Snake] SnakeTest'
 
 instance GameClass Game Direction where
     evolve = evolveGame
@@ -43,16 +46,20 @@ instance GameClass Game Direction where
 instance GamePlayClass Game Direction IO where
     gameStep = runOneStep
 
-instance GamePlayClass Game Direction SnakeAuto where
-    gameStep = runOneStepAuto
+instance GamePlayClass Game Direction SnakeTest where
+    gameStep = runOneStepTest
 
-instance GamePlayClass Game Direction SnakeWAuto where
-    gameStep = runOneStepWAuto
+instance GamePlayClass Game Direction SnakeWTest where
+    gameStep = runOneStepWTest
 
 instance GamePlayClass Game Direction BotPlay where
     gameStep = runOneStepBot
 
+instance GamePlayClass Game Direction SnakeTest' where
+    gameStep = runOneStepTest'
 
+instance GamePlayClass Game Direction SnakeWTest' where
+    gameStep = runOneStepWTest'
 --------------------------------- General Stuff ---------------------------------------------
 
 transformInputToGameParams :: Maybe Char -> Maybe Direction
@@ -72,23 +79,36 @@ directionToChar RIGHT = 'l'
 ---------------------------- Bot GamePlay --------------------------------
 
 runOneStepBot :: Game -> BotPlay (Maybe Direction, Game)
-runOneStepBot g = tell [g] >> (setDirectionToApple g, ) <$> handleGameIfOverAuto g
+runOneStepBot g = tell [g] >> (setDirectionToApple g, ) <$> handleGameIfOverTest g
 
----------------------------- Auto GamePlay -------------------------------
+---------------------------- Auto Test GamePlay -------------------------------
 
-runOneStepAuto :: Game -> SnakeAuto (Maybe Direction, Game)
-runOneStepAuto g = local tail $ (,)<$>(transformInputToGameParams<$> whenKeyIsPressedAuto)<*> handleGameIfOverAuto g
+runOneStepTest :: Game -> SnakeTest (Maybe Direction, Game)
+runOneStepTest g = local tail $ (,)<$>(transformInputToGameParams<$> whenKeyIsPressedTest)<*> handleGameIfOverTest g
 
-handleGameIfOverAuto :: Monad m => Game -> m Game
-handleGameIfOverAuto g = if isGameOver g then return g{status=OVER} else return g
+handleGameIfOverTest :: Monad m => Game -> m Game
+handleGameIfOverTest g = if isGameOver g then return g{status=OVER} else return g
 
-whenKeyIsPressedAuto :: SnakeAuto (Maybe Char)
-whenKeyIsPressedAuto = ReaderT $ Just . Just . head
+whenKeyIsPressedTest :: SnakeTest (Maybe Char)
+whenKeyIsPressedTest = ReaderT $ Just . Just . head
 
---------------------------- WriterT Auto Gameplay ------------------------
+--------------------------- Auto Test' GamePlay -------------------------------
 
-runOneStepWAuto :: Game -> SnakeWAuto (Maybe Direction, Game)
-runOneStepWAuto g = tell [snake g] >> liftWriterT (runOneStepAuto g)
+runOneStepTest' :: Game -> SnakeTest' (Maybe Direction, Game)
+runOneStepTest' g = (,)<$>(transformInputToGameParams<$> whenKeysIsPressedTest' )<*> handleGameIfOverTest g
+
+whenKeysIsPressedTest' :: SnakeTest' (Maybe Char)
+whenKeysIsPressedTest' = pop >> getHead 
+
+--------------------------- WriterT Auto Test Gameplay ------------------------
+
+runOneStepWTest :: Game -> SnakeWTest (Maybe Direction, Game)
+runOneStepWTest g = tell [snake g] >> liftWriterT (runOneStepTest g)
+
+--------------------------- WriterT Auto Test Gameplay ------------------------
+
+runOneStepWTest' :: Game -> SnakeWTest' (Maybe Direction, Game)
+runOneStepWTest' g = tell [snake g] >> liftWriterT (runOneStepTest' g)
 
 ---------------------------- IO GamePlay ---------------------------------
 clearLineCodeStr = "\ESC[0J"

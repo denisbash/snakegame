@@ -1,14 +1,19 @@
 module Auxiliary(
     ReaderT(..),
     WriterT(..),
+    StateT(..),
     local,
     tell,
-    liftWriterT
+    liftWriterT,
+    pop,
+    getHead
 ) where
 import Prelude
 import Control.Applicative (Applicative, Alternative (empty), (<|>))
 import Data.Bifunctor (first)
 import Data.Complex (magnitude)
+import GHC.Float (fabsDouble)
+import GHC.OldList (scanl')
 
 ---------------- ReaderT ------------------------------
 
@@ -68,5 +73,38 @@ liftWriterT mx = WriterT $ do
     x <- mx
     return (x, mempty)
      
---execWriter :: WriterT w m a -> w
---execWriter $ WriterT mx = 
+---------------------------------- StateT ------------------------------------
+
+newtype StateT s m a = StateT{runStateT :: s -> m (a,s)}
+
+instance Monad m => Functor (StateT s m) where
+    fmap f (StateT fa) = StateT $ \s -> do
+        (xa, sx) <- fa s
+        return (f xa, sx)
+
+instance Monad m => Applicative (StateT s m) where
+    pure x = StateT $ \s -> return (x, s)
+    StateT ff <*> StateT fa = StateT $ \s -> do
+        (f, s')   <- ff s
+        (xa, s'') <- fa s'
+        return (f xa, s'')
+
+
+instance Monad m => Monad (StateT s m) where
+    return = pure 
+    StateT fa >>= f = StateT $ \s -> do
+        (xa, xs) <- fa s
+        (xb, sb) <- runStateT (f xa) xs
+        return (xb, sb)
+
+----------------------- Particular StateT ------------------------
+
+pop :: Monad m => StateT [a] m ()
+pop = StateT f where
+    f [] = return ((),[])
+    f (_:xs) = return ((), xs)
+
+getHead :: Monad m => StateT [a] m (Maybe a)
+getHead = StateT f where
+    f [] = return (Nothing, []) 
+    f s@(x:_) = return (Just x, s)
