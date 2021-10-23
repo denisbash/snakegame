@@ -8,7 +8,7 @@ import Classes (gameLoop, gameLoopGen)
 import Control.Concurrent
 import Control.Applicative
 import System.Console.ANSI (setCursorPosition)
-import System.Random
+import System.Random ( newStdGen, mkStdGen )
 import System.IO (print)
 import Data.Functor.Identity (Identity(runIdentity))
 

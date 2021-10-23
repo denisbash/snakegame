@@ -8,10 +8,10 @@ cabal-version: 1.12
 
 name:           snake-game
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/snake-game#readme>
-homepage:       https://github.com/githubuser/snake-game#readme
-bug-reports:    https://github.com/githubuser/snake-game/issues
-author:         Author name here
+description:    Please see the README on GitHub at <https://github.com/denisbash/snakegame/blob/master/README.md>
+homepage:       https://github.com/denisbash/snakegame/blob/master/README.md
+bug-reports:    https://github.com/denisbash/snakegame/issues
+author:         denisbash
 maintainer:     example@example.com
 copyright:      2021 Author name here
 license:        BSD3

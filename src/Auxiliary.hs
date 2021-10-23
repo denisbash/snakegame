@@ -113,6 +113,8 @@ getHead = StateT f where
     f [] = return (Nothing, []) 
     f s@(x:_) = return (Just x, s)
 
+-----------------------------------------------------------------
+
 headSafe :: [a] -> Maybe a
 headSafe [] = Nothing 
 headSafe (x:_) = Just x
