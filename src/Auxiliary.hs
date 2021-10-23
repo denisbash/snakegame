@@ -11,9 +11,6 @@ module Auxiliary(
 import Prelude
 import Control.Applicative (Applicative, Alternative (empty), (<|>))
 import Data.Bifunctor (first)
-import Data.Complex (magnitude)
-import GHC.Float (fabsDouble)
-import GHC.OldList (scanl')
 
 ---------------- ReaderT ------------------------------
 

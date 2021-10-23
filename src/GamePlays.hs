@@ -8,8 +8,14 @@ module GamePlays
       directionToChar,
       gameCleanUp
     ) where
-import System.Console.ANSI
+import System.Console.ANSI ( clearScreen, setCursorPosition )
 import System.IO
+    ( hSetBuffering,
+      hSetEcho,
+      stdin,
+      stdout,
+      hReady,
+      BufferMode(NoBuffering) )
 import GHC.Conc (threadDelay)
 import Text.Read.Lex (isSymbolChar)
 import GHC.Show (Show)
@@ -84,21 +90,21 @@ runOneStepBot g = tell [g] >> (setDirectionToApple g, ) <$> handleGameIfOverTest
 ---------------------------- Auto Test GamePlay -------------------------------
 
 runOneStepTest :: Game -> SnakeTest (Maybe Direction, Game)
-runOneStepTest g = local tail $ (,)<$>(transformInputToGameParams<$> whenKeyIsPressedTest)<*> handleGameIfOverTest g
+runOneStepTest g = (,)<$>(transformInputToGameParams<$> getInputCharTest)<*> handleGameIfOverTest g
 
 handleGameIfOverTest :: Monad m => Game -> m Game
 handleGameIfOverTest g = if isGameOver g then return g{status=OVER} else return g
 
-whenKeyIsPressedTest :: SnakeTest (Maybe Char)
-whenKeyIsPressedTest = ReaderT $ Just . Just . head
+getInputCharTest :: SnakeTest (Maybe Char)
+getInputCharTest = ReaderT $ Just . Just . head
 
 --------------------------- Auto Test' GamePlay -------------------------------
 
 runOneStepTest' :: Game -> SnakeTest' (Maybe Direction, Game)
-runOneStepTest' g = (,)<$>(transformInputToGameParams<$> whenKeysIsPressedTest' )<*> handleGameIfOverTest g
+runOneStepTest' g = (,)<$>(transformInputToGameParams<$> getInputCharTest' )<*> handleGameIfOverTest g
 
-whenKeysIsPressedTest' :: SnakeTest' (Maybe Char)
-whenKeysIsPressedTest' = pop >> getHead 
+getInputCharTest' :: SnakeTest' (Maybe Char)
+getInputCharTest' = pop >> getHead 
 
 --------------------------- WriterT Auto Test Gameplay ------------------------
 
@@ -149,7 +155,7 @@ gameCleanUp g = do
 runOneStep :: Game -> IO(Maybe Direction, Game)
 runOneStep g = do
     gameCleanUp g
-    (,)<$>(transformInputToGameParams<$> whenKeyIsPressed)<*> handleGameIfOver g
+    (,)<$>(transformInputToGameParams<$> getInputCharIO)<*> handleGameIfOver g
 
 
 evWithInput :: (Maybe Direction, Game) -> Game
@@ -185,8 +191,8 @@ drawGameCharPoints g = mapM_ drawCharPoint (gameToCharPoints g) >> setCursorPosi
 eraseGameCharPoints :: Game -> IO()
 eraseGameCharPoints g = mapM_ (\(ch, p) -> drawPoint ' ' p) (gameToCharPoints g) >> setCursorPosition 0 0
 
-whenKeyIsPressed :: IO (Maybe Char)
-whenKeyIsPressed = hReady stdin >>= go
+getInputCharIO :: IO (Maybe Char)
+getInputCharIO = hReady stdin >>= go
    where go True = getChar <&> Just
          go _    = return Nothing
 

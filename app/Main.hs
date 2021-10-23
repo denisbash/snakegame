@@ -3,8 +3,8 @@ module Main where
 
 import GamePlays ( drawCharBndry, prepareScreen, directionToChar, gameCleanUp )
 import GameLogic (initialGame, Field(..), Snake(..), Point(..), Game (..))
-import Auxiliary (ReaderT(..), WriterT (..), StateT(..))
-import Classes (gameLoop)
+import Auxiliary (ReaderT(..), WriterT (..), StateT(..), local)
+import Classes (gameLoop, gameLoopGen)
 import Control.Concurrent
 import Control.Applicative
 import System.Console.ANSI (setCursorPosition)
@@ -13,8 +13,9 @@ import System.IO (print)
 import Data.Functor.Identity (Identity(runIdentity))
 
 
+
 main :: IO ()
-main = mainWTest' --mainWBot 
+main = mainWTest --mainTest --mainWTest' --mainWBot 
 
 mainIO = do
     prepareScreen 
@@ -24,12 +25,12 @@ mainIO = do
     gameLoop game
     putStrLn "That's it, folks!"    
 
-testInput = "jhk l         j"
+testInput = " jhk l  k h  j"
 
 mainTest :: IO()
 mainTest = do
     g0 <- newStdGen 
-    let res = runReaderT (gameLoop (initialGame g0)) testInput 
+    let res = runReaderT (gameLoopGen (local tail) (initialGame g0)) testInput 
     case res of 
         Just (mDir,_) -> case mDir of
             Just dir -> putChar $ directionToChar dir
