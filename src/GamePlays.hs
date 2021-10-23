@@ -26,7 +26,7 @@ import Data.Functor ((<&>))
 import GameLogic (Game(..), Field(..), Snake(..), Direction(..), Point(..), Status(..),
     gameSpeed, evolveGame, changeSnakeDirection, isGameOver, initialGame, changeGameWithParams, setDirectionToApple)
 import Classes (GameClass (..), GamePlayClass (gameStep))
-import Auxiliary (ReaderT(..), local, WriterT, tell, liftWriterT, StateT, getHead, pop)
+import Auxiliary (ReaderT(..), local, WriterT, tell, liftWriterT, StateT, getHead, pop, headSafe)
 import System.Random (newStdGen)
 import Data.Functor.Identity (Identity)
 
@@ -96,7 +96,7 @@ handleGameIfOverTest :: Monad m => Game -> m Game
 handleGameIfOverTest g = if isGameOver g then return g{status=OVER} else return g
 
 getInputCharTest :: SnakeTest (Maybe Char)
-getInputCharTest = ReaderT $ Just . Just . head
+getInputCharTest = ReaderT $ Just . headSafe 
 
 --------------------------- Auto Test' GamePlay -------------------------------
 

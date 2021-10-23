@@ -5,12 +5,16 @@ module Auxiliary(
     local,
     tell,
     liftWriterT,
+    liftWriterTFunc,
     pop,
-    getHead
+    getHead,
+    headSafe,
+    tailSafe
 ) where
 import Prelude
 import Control.Applicative (Applicative, Alternative (empty), (<|>))
 import Data.Bifunctor (first)
+
 
 ---------------- ReaderT ------------------------------
 
@@ -69,6 +73,9 @@ liftWriterT :: (Monoid w, Monad m) => m a -> WriterT w m a
 liftWriterT mx = WriterT $ do
     x <- mx
     return (x, mempty)
+
+liftWriterTFunc :: (Monoid w, Monad m) => (m (a, w) -> m (a, w)) -> WriterT w m a -> WriterT w m a
+liftWriterTFunc f (WriterT mx) = WriterT $ f mx
      
 ---------------------------------- StateT ------------------------------------
 
@@ -105,3 +112,11 @@ getHead :: Monad m => StateT [a] m (Maybe a)
 getHead = StateT f where
     f [] = return (Nothing, []) 
     f s@(x:_) = return (Just x, s)
+
+headSafe :: [a] -> Maybe a
+headSafe [] = Nothing 
+headSafe (x:_) = Just x
+
+tailSafe :: [a] -> [a]
+tailSafe [] = []
+tailSafe x = tail x
